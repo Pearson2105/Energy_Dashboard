@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UK Renewables • Energy Transition Explorer</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        :root {
+            --primary: #00ff9d;
+            --accent: #00b4ff;
+            --dark: #0a0f1c;
+            --card: #121a2e;
+        }
+        
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: linear-gradient(135deg, #0a0f1c 0%, #1a2338 100%);
+            color: #e0f2ff;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: 280px 1fr 1fr;
+            grid-template-rows: 90px 1fr 1fr;
+            height: 100vh;
+            gap: 12px;
+            padding: 12px;
+            box-sizing: border-box;
+        }
+
+        .header {
+            grid-column: 1 / -1;
+            background: rgba(10, 15, 28, 0.95);
+            border-bottom: 2px solid var(--primary);
+            padding: 0 25px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            backdrop-filter: blur(10px);
+        }
+
+        .title {
+            font-size: 28px;
+            font-weight: 700;
+            background: linear-gradient(90deg, #00ff9d, #00b4ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .subtitle {
+            font-size: 15px;
+            opacity: 0.8;
+            margin-top: 4px;
+        }
+
+        .sidebar {
+            background: var(--card);
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0, 255, 157, 0.1);
+        }
+
+        .main-chart {
+            background: var(--card);
+            border-radius: 16px;
+            padding: 18px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .chart-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .slider-container {
+            margin: 20px 0;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            accent-color: var(--primary);
+        }
+
+        .year-label {
+            text-align: center;
+            font-size: 22px;
+            font-weight: bold;
+            color: var(--primary);
+            margin: 8px 0;
+        }
+
+        .tooltip {
+            position: absolute;
+            background: rgba(10, 15, 28, 0.95);
+            border: 1px solid var(--primary);
+            padding: 12px 16px;
+            border-radius: 8px;
+            pointer-events: none;
+            font-size: 14px;
+            box-shadow: 0 5px 15px rgba(0, 255, 157, 0.3);
+            z-index: 1000;
+        }
+
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 10px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .legend-item:hover {
+            transform: scale(1.05);
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <div class="header">
+            <div>
+                <div class="title">UK ENERGY TRANSITION</div>
+                <div class="subtitle">Renewable & Waste Sources • 1990 – 2023</div>
+            </div>
+            <div style="text-align: right;">
+                <button onclick="resetAll()" style="background:var(--primary); color:#000; border:none; padding:10px 20px; border-radius:8px; font-weight:bold; cursor:pointer;">
+                    RESET EXPLORER
+                </button>
+            </div>
+        </div>
+
+        <div class="sidebar">
+            <h3 style="color:var(--primary); margin-top:0;">Question</h3>
+            <p style="line-height:1.5; opacity:0.9;">
+                How is the UK shifting toward renewables?<br>
+                <strong>Which sources are accelerating the transition?</strong>
+            </p>
+            
+            <div class="slider-container">
+                <label style="display:block; margin-bottom:8px; font-size:14px;">Selected Year</label>
+                <input type="range" id="year-slider" min="1990" max="2023" value="2023" step="1">
+                <div id="selected-year" class="year-label">2023</div>
+            </div>
+
+            <div style="margin-top:30px;">
+                <strong style="color:var(--accent);">Active Filter:</strong>
+                <div id="active-filter" style="margin-top:8px; font-size:15px; min-height:24px;">None</div>
+            </div>
+        </div>
+
+        <div class="main-chart" style="grid-column: 2; grid-row: 2;">
+            <div class="chart-title">◉ Energy Mix Evolution (Streamgraph)</div>
+            <svg id="streamgraph"></svg>
+        </div>
+
+        <div class="main-chart" style="grid-column: 3; grid-row: 2;">
+            <div class="chart-title">📈 Total Renewable Growth + Source Trends</div>
+            <svg id="linechart"></svg>
+        </div>
+
+        <div class="main-chart" style="grid-column: 2 / -1; grid-row: 3;">
+            <div class="chart-title">☀ Hierarchical Contribution by Source (Sunburst)</div>
+            <svg id="sunburst"></svg>
+            <div class="legend" id="sunburst-legend"></div>
+        </div>
+    </div>
+
+    <div id="tooltip" class="tooltip"></div>
+
+    <script>
+
+        const data = [
+            {year:1990, Wind:0.05, Solar:0.01, Hydro:0.45, Bioenergy:1.8, Waste:1.2, Other:0.3, Total:3.81},
+            {year:2000, Wind:0.85, Solar:0.02, Hydro:0.48, Bioenergy:2.9, Waste:1.8, Other:0.6, Total:6.65},
+            {year:2010, Wind:2.1,  Solar:0.08, Hydro:0.42, Bioenergy:4.5, Waste:2.4, Other:0.9, Total:10.4},
+            {year:2015, Wind:3.113,Solar:0.54, Hydro:0.459,Bioenergy:7.5, Waste:3.0, Other:0.556,Total:15.168},
+            {year:2016, Wind:3.161,Solar:0.46, Hydro:0.449,Bioenergy:7.8, Waste:3.2, Other:0.574,Total:15.644},
+            {year:2017, Wind:3.652,Solar:0.506,Hydro:0.452,Bioenergy:8.5, Waste:3.6, Other:0.726,Total:17.436},
+            {year:2018, Wind:4.168,Solar:0.468,Hydro:0.445,Bioenergy:9.2, Waste:4.0, Other:1.377,Total:19.657},
+            {year:2019, Wind:4.565,Solar:0.51, Hydro:0.443,Bioenergy:9.8, Waste:4.3, Other:1.137,Total:20.755},
+            {year:2020, Wind:5.257,Solar:0.591,Hydro:0.362,Bioenergy:10.2,Waste:4.5, Other:1.35, Total:22.262},
+            {year:2021, Wind:4.797,Solar:0.466,Hydro:0.469,Bioenergy:10.5,Waste:4.2, Other:1.297,Total:21.729},
+            {year:2022, Wind:5.5,  Solar:0.487,Hydro:0.745,Bioenergy:10.8,Waste:4.1, Other:1.316,Total:22.948},
+            {year:2023, Wind:5.734,Solar:0.476,Hydro:0.825,Bioenergy:11.0,Waste:4.0, Other:1.075,Total:23.11}
+        ];
+
+        const sources = ["Wind", "Solar", "Hydro", "Bioenergy", "Waste", "Other"];
+        const color = d3.scaleOrdinal()
+            .domain(sources)
+            .range(["#00ff9d", "#00f0ff", "#4ade80", "#f97316", "#8b5cf6", "#eab308"]);
+
+        let currentYear = 2023;
+        let highlightedSource = null;
+
+        function showTooltip(event, html) {
+            const tooltip = d3.select("#tooltip");
+            tooltip.html(html)
+                .style("left", (event.pageX + 15) + "px")
+                .style("top", (event.pageY - 10) + "px")
+                .style("display", "block");
+        }
+
+        function hideTooltip() {
+            d3.select("#tooltip").style("display", "none");
+        }
+
+        function drawStreamgraph() {
+            const svg = d3.select("#streamgraph");
+            svg.selectAll("*").remove();
+
+            const width = 620, height = 280;
+            const margin = {top: 20, right: 40, bottom: 50, left: 60};
+
+            const g = svg.attr("viewBox", `0 0 ${width} ${height}`)
+                .append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+
+            const x = d3.scaleLinear().domain(d3.extent(data, d => d.year)).range([0, width - margin.left - margin.right]);
+            const y = d3.scaleLinear().domain([0, d3.max(data, d => d.Total)]).range([height - margin.top - margin.bottom, 0]);
+
+            const stack = d3.stack()
+                .keys(sources)
+                .order(d3.stackOrderNone)
+                .offset(d3.stackOffsetWiggle);
+
+            const stackedData = stack(data);
+
+            const area = d3.area()
+                .x(d => x(d.data.year))
+                .y0(d => y(d[0]))
+                .y1(d => y(d[1]))
+                .curve(d3.curveBasis);
+
+            g.selectAll("path")
+                .data(stackedData)
+                .enter()
+                .append("path")
+                .attr("d", area)
+                .attr("fill", d => color(d.key))
+                .attr("stroke", "#0a0f1c")
+                .attr("stroke-width", 1.5)
+                .attr("opacity", d => highlightedSource && d.key !== highlightedSource ? 0.25 : 0.85)
+                .on("mouseover", (event, d) => {
+                    highlightedSource = d.key;
+                    updateAll();
+                    showTooltip(event, `<strong>${d.key}</strong><br>Contribution over time`);
+                })
+                .on("mouseout", () => { hideTooltip(); });
+        }
+
+        function drawLineChart() {
+            const svg = d3.select("#linechart");
+            svg.selectAll("*").remove();
+
+            const width = 620, height = 280;
+            const margin = {top: 20, right: 80, bottom: 50, left: 60};
+
+            const g = svg.attr("viewBox", `0 0 ${width} ${height}`)
+                .append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+
+            const x = d3.scaleLinear().domain(d3.extent(data, d => d.year)).range([0, width-margin.left-margin.right]);
+            const y = d3.scaleLinear().domain([0, 25]).range([height-margin.top-margin.bottom, 0]);
+
+            const totalLine = d3.line()
+                .x(d => x(d.year))
+                .y(d => y(d.Total))
+                .curve(d3.curveMonotoneX);
+
+            g.append("path")
+                .datum(data)
+                .attr("d", totalLine)
+                .attr("fill", "none")
+                .attr("stroke", "#fff")
+                .attr("stroke-width", 4)
+                .attr("stroke-opacity", 0.9);
+
+            // Source lines
+            sources.forEach(src => {
+                const lineGen = d3.line()
+                    .x(d => x(d.year))
+                    .y(d => y(d[src]))
+                    .curve(d3.curveMonotoneX);
+
+                const path = g.append("path")
+                    .datum(data)
+                    .attr("d", lineGen)
+                    .attr("fill", "none")
+                    .attr("stroke", color(src))
+                    .attr("stroke-width", highlightedSource === src ? 5 : 2.5)
+                    .attr("stroke-opacity", highlightedSource && highlightedSource !== src ? 0.25 : 1)
+                    .on("mouseover", () => {
+                        highlightedSource = src;
+                        updateAll();
+                    });
+            });
+
+            // Axes
+            g.append("g").attr("transform", `translate(0,${height-margin.top-margin.bottom})`).call(d3.axisBottom(x).tickFormat(d3.format("d")));
+            g.append("g").call(d3.axisLeft(y));
+        }
+
+        function drawSunburst() {
+            const svg = d3.select("#sunburst");
+            svg.selectAll("*").remove();
+
+            const width = 1100, height = 340;
+            const radius = Math.min(width, height) / 2 - 40;
+
+            const g = svg.attr("viewBox", `0 0 ${width} ${height}`)
+                .append("g")
+                .attr("transform", `translate(${width/2},${height/2})`);
+
+            const yearData = data.find(d => d.year === currentYear) || data[data.length-1];
+
+            const hierarchy = {
+                name: "Total",
+                children: sources.map(s => ({
+                    name: s,
+                    value: yearData[s] || 0
+                })).filter(d => d.value > 0)
+            };
+
+            const root = d3.hierarchy(hierarchy)
+                .sum(d => d.value)
+                .sort((a, b) => b.value - a.value);
+
+            const partition = d3.partition().size([2 * Math.PI, radius]);
+
+            partition(root);
+
+            const arc = d3.arc()
+                .startAngle(d => d.x0)
+                .endAngle(d => d.x1)
+                .padAngle(0.01)
+                .padRadius(radius / 2)
+                .innerRadius(d => d.y0)
+                .outerRadius(d => d.y1);
+
+            const paths = g.selectAll("path")
+                .data(root.descendants().slice(1))
+                .enter()
+                .append("path")
+                .attr("d", arc)
+                .attr("fill", d => color(d.data.name))
+                .attr("stroke", "#0a0f1c")
+                .style("cursor", "pointer")
+                .on("click", (event, d) => {
+                    if (d.depth === 1) {
+                        highlightedSource = d.data.name;
+                        updateAll();
+                    }
+                })
+                .on("mouseover", (event, d) => {
+                    if (d.depth === 1) {
+                        const perc = (d.value / root.value * 100).toFixed(1);
+                        showTooltip(event, `<strong>${d.data.name}</strong><br>${d.value.toFixed(2)} Mtoe<br>${perc}% of total`);
+                    }
+                })
+                .on("mouseout", hideTooltip);
+
+            g.selectAll("text")
+                .data(root.descendants().slice(1).filter(d => d.depth === 1))
+                .enter()
+                .append("text")
+                .attr("transform", d => {
+                    const x = (d.x0 + d.x1) / 2 * 180 / Math.PI;
+                    const y = (d.y0 + d.y1) / 2;
+                    return `rotate(${x - 90}) translate(${y},0) rotate(${x < 180 ? 0 : 180})`;
+                })
+                .attr("text-anchor", "middle")
+                .attr("dy", "0.35em")
+                .style("fill", "white")
+                .style("font-size", "13px")
+                .text(d => d.data.name);
+        }
+
+        function updateAll() {
+            document.getElementById("selected-year").textContent = currentYear;
+            document.getElementById("active-filter").innerHTML = highlightedSource 
+                ? `<span style="color:${color(highlightedSource)}">● ${highlightedSource}</span>` 
+                : "None";
+
+            drawStreamgraph();
+            drawLineChart();
+            drawSunburst();
+        }
+
+        function init() {
+            const slider = document.getElementById("year-slider");
+            slider.addEventListener("input", (e) => {
+                currentYear = +e.target.value;
+                updateAll();
+            });
+
+            updateAll();
+        }
+
+        function resetAll() {
+            highlightedSource = null;
+            currentYear = 2023;
+            document.getElementById("year-slider").value = 2023;
+            updateAll();
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
