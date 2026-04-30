@@ -278,8 +278,12 @@ function createLineChart() {
         .domain(d3.extent(filteredData, d => d.year))
         .range([0, chartWidth]);
 
+    const maxY = selectedSource
+        ? d3.max(filteredData, d => d[selectedSource])
+        : d3.max(filteredData, d => d.total);
+
     const y = d3.scaleLinear()
-        .domain([0, d3.max(filteredData, d => d.total) * 1.1])
+        .domain([0, maxY * 1.15])
         .range([chartHeight, 0]);
 
     g.append("g")
@@ -294,12 +298,14 @@ function createLineChart() {
         .y(d => y(d.total))
         .curve(d3.curveMonotoneX);
 
-    g.append("path")
-        .datum(filteredData)
-        .attr("fill", "none")
-        .attr("stroke", "#111827")
-        .attr("stroke-width", 4)
-        .attr("d", totalLine);
+    if (!selectedSource) {
+        g.append("path")
+            .datum(filteredData)
+            .attr("fill", "none")
+            .attr("stroke", "#111827")
+            .attr("stroke-width", 4)
+            .attr("d", totalLine);
+    }
 
     Object.keys(sourceGroups).forEach(source => {
 
@@ -313,7 +319,7 @@ function createLineChart() {
             .attr("fill", "none")
             .attr("stroke", colors(source))
             .attr("stroke-width", selectedSource === source ? 5 : 2.5)
-            .attr("opacity", selectedSource && selectedSource !== source ? 0.2 : 1)
+            .attr("opacity", selectedSource && selectedSource !== source ? 0.15 : 1)
             .attr("d", line)
             .style("cursor", "pointer")
             .on("mouseover", (event) => {
@@ -356,8 +362,7 @@ function createLineChart() {
 
         renderDashboard();
     }
-
-    const legend = g.append("g")
+const legend = g.append("g")
         .attr("transform", `translate(${chartWidth + 15},0)`);
 
     Object.keys(sourceGroups).forEach((source, i) => {
@@ -483,16 +488,19 @@ function createTreemap() {
         name: "Renewables",
         children: Object.keys(sourceGroups).map(source => ({
             name: source,
-            value: yearData[source]
+            value: yearData[source],
+            percentage: (yearData[source] / yearData.total) * 100
         }))
     };
 
     const root = d3.hierarchy(hierarchy)
-        .sum(d => d.value);
+        .sum(d => d.value)
+        .sort((a, b) => b.value - a.value);
 
     d3.treemap()
         .size([width, height])
-        .padding(4)(root);
+        .paddingInner(5)
+        .round(true)(root);
 
     const g = svg
         .attr("viewBox", `0 0 ${width} ${height}`)
@@ -507,15 +515,21 @@ function createTreemap() {
     cell.append("rect")
         .attr("width", d => d.x1 - d.x0)
         .attr("height", d => d.y1 - d.y0)
+        .attr("rx", 8)
+        .attr("ry", 8)
         .attr("fill", d => colors(d.data.name))
         .attr("stroke", "white")
-        .attr("stroke-width", 2)
-        .attr("opacity", d => selectedSource && selectedSource !== d.data.name ? 0.3 : 1)
+        .attr("stroke-width", 3)
+        .attr("opacity", d => selectedSource && selectedSource !== d.data.name ? 0.25 : 1)
         .style("cursor", "pointer")
         .on("mouseover", (event, d) => {
             tooltip
                 .style("display", "block")
-                .html(`${d.data.name}<br>${d.data.value.toFixed(2)} Mtoe`)
+                .html(`
+                    <strong>${d.data.name}</strong><br>
+                    ${d.data.value.toFixed(2)} Mtoe<br>
+                    ${d.data.percentage.toFixed(1)}% of total
+                `)
                 .style("left", event.pageX + 12 + "px")
                 .style("top", event.pageY - 15 + "px");
         })
@@ -528,19 +542,26 @@ function createTreemap() {
         });
 
     cell.append("text")
-        .attr("x", 10)
-        .attr("y", 24)
+        .attr("x", 14)
+        .attr("y", 28)
         .style("fill", "white")
-        .style("font-size", "16px")
+        .style("font-size", "18px")
         .style("font-weight", "bold")
         .text(d => d.data.name);
 
     cell.append("text")
-        .attr("x", 10)
-        .attr("y", 45)
+        .attr("x", 14)
+        .attr("y", 52)
+        .style("fill", "white")
+        .style("font-size", "14px")
+        .text(d => `${d.data.value.toFixed(2)} Mtoe`);
+
+    cell.append("text")
+        .attr("x", 14)
+        .attr("y", 72)
         .style("fill", "white")
         .style("font-size", "13px")
-        .text(d => `${d.data.value.toFixed(2)} Mtoe`);
+        .text(d => `${d.data.percentage.toFixed(1)}% of renewable energy`);
 }
 
 function renderDashboard() {
