@@ -192,7 +192,7 @@ let dataset = [];
 let selectedSource = null;
 let brushedRange = null;
 
-// ==================== DATA PROCESSING ====================
+// ==================== DATA ====================
 function buildData(raw) {
     return raw.map(d => {
         const row = { year: +d.Year };
@@ -204,7 +204,6 @@ function buildData(raw) {
     });
 }
 
-// ==================== UI HELPERS ====================
 function createDropdown() {
     const select = document.getElementById("sourceSelect");
     Object.keys(sourceGroups).forEach(s => {
@@ -234,7 +233,7 @@ function createLegend(containerId) {
     });
 }
 
-// ==================== LINE CHART (Fixed Brush) ====================
+// ==================== FIXED LINE CHART ====================
 function createLineChart() {
     const svg = d3.select("#lineChart");
     svg.selectAll("*").remove();
@@ -247,13 +246,13 @@ function createLineChart() {
     const g = svg.attr("viewBox", `0 0 ${width} ${height}`)
                  .append("g").attr("transform", `translate(${margin.left},${margin.top})`);
 
+    // Always use full dataset for scaling, filter only for display
     let displayData = dataset;
     let xDomain = d3.extent(dataset, d => d.year);
 
     if (brushedRange) {
-        const rangeData = dataset.filter(d => d.year >= brushedRange[0] && d.year <= brushedRange[1]);
-        displayData = rangeData;
-        if (brushedRange[1] - brushedRange[0] >= 4) {
+        displayData = dataset.filter(d => d.year >= brushedRange[0] && d.year <= brushedRange[1]);
+        if (brushedRange[1] - brushedRange[0] >= 5) {
             xDomain = brushedRange;
         }
     }
@@ -275,14 +274,14 @@ function createLineChart() {
 
     const lineGen = d3.line().curve(d3.curveNatural);
 
-    // Total (Black line)
+    // Black Total line
     if (!selectedSource) {
         lineGen.x(d => x(d.year)).y(d => y(d.total));
         g.append("path").datum(displayData)
             .attr("fill","none").attr("stroke","#1e2937").attr("stroke-width", 3.5).attr("d", lineGen);
     }
 
-    // Individual lines
+    // Source lines
     Object.keys(sourceGroups).forEach(source => {
         lineGen.x(d => x(d.year)).y(d => y(d[source]));
         g.append("path")
@@ -302,7 +301,7 @@ function createLineChart() {
             .on("mouseout", () => tooltip.style("display","none"));
     });
 
-    // Brush with minimum range protection
+    // Brush
     const brush = d3.brushX()
         .extent([[0, 0], [w, h]])
         .on("end", event => {
@@ -312,9 +311,7 @@ function createLineChart() {
                 let [x0, x1] = event.selection.map(x.invert);
                 x0 = Math.round(Math.max(1990, x0));
                 x1 = Math.round(Math.min(2023, x1));
-
-                if (x1 - x0 < 4) x1 = Math.min(2023, x0 + 4);   // Minimum 4 years
-
+                if (x1 - x0 < 4) x1 = Math.min(2023, x0 + 4);
                 brushedRange = [x0, x1];
             }
             renderAll();
@@ -374,7 +371,7 @@ function createStackedAreaChart() {
     g.append("g").call(d3.axisLeft(y));
 }
 
-// ==================== TREEMAP (Improved Labels) ====================
+// ==================== TREEMAP ====================
 function createTreemap() {
     const svg = d3.select("#treeMap");
     svg.selectAll("*").remove();
@@ -432,14 +429,12 @@ function createTreemap() {
         })
         .on("mouseout", () => tooltip.style("display","none"));
 
-    // Smart labeling
     cells.each(function(d) {
         const rectW = d.x1 - d.x0;
         const rectH = d.y1 - d.y0;
         const group = d3.select(this);
 
         if (rectH < 40) {
-            // Very small box - only value
             group.append("text")
                 .attr("x", rectW/2)
                 .attr("y", rectH/2 + 5)
@@ -449,8 +444,7 @@ function createTreemap() {
                 .style("font-weight", "600")
                 .text(d.data.value.toFixed(1));
         } else {
-            // Normal box
-            const name = group.append("text")
+            const nameText = group.append("text")
                 .attr("x", 9)
                 .attr("y", 24)
                 .style("fill", "#fff")
@@ -465,15 +459,14 @@ function createTreemap() {
                 .style("font-size", "11.5px")
                 .text(d.data.value.toFixed(1));
 
-            // Shorten name if too wide
-            if (name.node().getComputedTextLength() > rectW - 18) {
-                name.text(d.data.name.length > 9 ? d.data.name.substring(0,8) + "..." : d.data.name);
+            if (nameText.node().getComputedTextLength() > rectW - 20) {
+                nameText.text(d.data.name.length > 9 ? d.data.name.substring(0,8) + "..." : d.data.name);
             }
         }
     });
 }
 
-// ==================== RENDER ALL ====================
+// ==================== RENDER ====================
 function renderAll() {
     createLineChart();
     createStackedAreaChart();
@@ -489,7 +482,7 @@ function resetDashboard() {
     renderAll();
 }
 
-// ==================== LOAD DATA ====================
+// Load data
 d3.csv("renewables_sources.csv").then(raw => {
     dataset = buildData(raw);
     createDropdown();
