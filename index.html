@@ -45,23 +45,10 @@
         align-items: center;
     }
 
-    .question h1 {
-        font-size: 21.5px;
-        font-weight: 700;
-        color: #0f172a;
-    }
+    .question h1 { font-size: 21.5px; font-weight: 700; color: #0f172a; }
+    .question p { font-size: 13.8px; color: #475569; margin-top: 3px; }
 
-    .question p {
-        font-size: 13.8px;
-        color: #475569;
-        margin-top: 3px;
-    }
-
-    .controls {
-        display: flex;
-        gap: 10px;
-        align-items: center;
-    }
+    .controls { display: flex; gap: 10px; align-items: center; }
 
     select, button {
         padding: 8px 14px;
@@ -89,18 +76,9 @@
         overflow: hidden;
     }
 
-    .chart-title {
-        font-size: 15.8px;
-        font-weight: 600;
-        margin-bottom: 8px;
-        color: #1e2937;
-    }
+    .chart-title { font-size: 15.8px; font-weight: 600; margin-bottom: 8px; color: #1e2937; }
 
-    svg { 
-        width: 100%; 
-        height: 100%; 
-        flex: 1;
-    }
+    svg { width: 100%; height: 100%; flex: 1; }
 
     .tooltip {
         position: absolute;
@@ -115,11 +93,7 @@
         pointer-events: none;
     }
 
-    .info {
-        font-size: 12px;
-        color: #64748b;
-        margin-top: 6px;
-    }
+    .info { font-size: 12px; color: #64748b; margin-top: 6px; }
 
     .legend {
         display: flex;
@@ -209,7 +183,7 @@ let dataset = [];
 let selectedSource = null;
 let brushedRange = null;
 
-// ==================== DATA ====================
+// Data processing
 function buildData(raw) {
     return raw.map(d => {
         const row = { year: +d.Year };
@@ -221,7 +195,6 @@ function buildData(raw) {
     });
 }
 
-// ==================== DROPDOWN & LEGEND ====================
 function createDropdown() {
     const select = document.getElementById("sourceSelect");
     Object.keys(sourceGroups).forEach(s => {
@@ -280,13 +253,11 @@ function createLineChart() {
 
     const lineGen = d3.line().curve(d3.curveNatural);
 
-    // Black line = TOTAL
+    // Total (Black line)
     if (!selectedSource) {
         lineGen.x(d=>x(d.year)).y(d=>y(d.total));
         g.append("path").datum(data)
-            .attr("fill","none")
-            .attr("stroke","#1e2937")
-            .attr("stroke-width", 3.5)
+            .attr("fill","none").attr("stroke","#1e2937").attr("stroke-width", 3.5)
             .attr("d", lineGen);
     }
 
@@ -300,16 +271,11 @@ function createLineChart() {
             .attr("opacity", selectedSource && selectedSource !== source ? 0.28 : 1)
             .attr("d", lineGen)
             .style("cursor","pointer")
-            .on("click", () => {
-                selectedSource = source;
-                document.getElementById("sourceSelect").value = source;
-                renderAll();
-            })
+            .on("click", () => { selectedSource = source; document.getElementById("sourceSelect").value = source; renderAll(); })
             .on("mouseover", e => tooltip.style("display","block").html(`<strong>${source}</strong>`).style("left", e.pageX+14+"px").style("top", e.pageY-8+"px"))
             .on("mouseout", () => tooltip.style("display","none"));
     });
 
-    // Brush
     const brush = d3.brushX().extent([[0,0],[w,h]])
         .on("end", event => {
             if (!event.selection) brushedRange = null;
@@ -358,47 +324,50 @@ function createStackedAreaChart() {
         .attr("fill", d => colors(d.key))
         .attr("opacity", d => selectedSource && selectedSource !== d.key ? 0.4 : 0.85)
         .attr("stroke", "#fff")
-        .attr("stroke-width", 1)
         .style("cursor", "pointer")
         .on("click", (e, d) => {
             selectedSource = selectedSource === d.key ? null : d.key;
             document.getElementById("sourceSelect").value = selectedSource || "all";
             renderAll();
         })
-        .on("mouseover", (e, d) => {
-            tooltip.style("display","block").html(`<strong>${d.key}</strong>`).style("left", e.pageX+15+"px").style("top", e.pageY-10+"px");
-        })
+        .on("mouseover", (e, d) => tooltip.style("display","block").html(`<strong>${d.key}</strong>`).style("left", e.pageX+15+"px").style("top", e.pageY-10+"px"))
         .on("mouseout", () => tooltip.style("display","none"));
 
     g.append("g").attr("transform", `translate(0,${h})`).call(d3.axisBottom(x).tickFormat(d3.format("d")));
     g.append("g").call(d3.axisLeft(y));
 }
 
-// ==================== TREEMAP ====================
+// ==================== IMPROVED TREEMAP ====================
 function createTreemap() {
     const svg = d3.select("#treeMap");
     svg.selectAll("*").remove();
 
-    const width = 490, height = 265;
+    const width = 490;
+    const height = 265;
 
     let dataForTreemap;
+    let titleText = "(2023)";
+
     if (brushedRange) {
         const rangeData = dataset.filter(d => d.year >= brushedRange[0] && d.year <= brushedRange[1]);
         dataForTreemap = {};
-        Object.keys(sourceGroups).forEach(s => dataForTreemap[s] = d3.mean(rangeData, d => d[s]) || 0);
-        document.getElementById("treemapYear").textContent = `(${brushedRange[0]}-${brushedRange[1]} avg)`;
+        Object.keys(sourceGroups).forEach(s => {
+            dataForTreemap[s] = d3.mean(rangeData, d => d[s]) || 0;
+        });
+        titleText = `(${brushedRange[0]}-${brushedRange[1]} avg)`;
     } else {
         const yearData = dataset.find(d => d.year === 2023) || dataset[dataset.length-1];
         dataForTreemap = Object.fromEntries(Object.keys(sourceGroups).map(s => [s, yearData[s]]));
-        document.getElementById("treemapYear").textContent = "(2023)";
     }
+
+    document.getElementById("treemapYear").textContent = titleText;
 
     const root = d3.hierarchy({
         name: "Renewables",
         children: Object.keys(sourceGroups).map(s => ({name: s, value: dataForTreemap[s]}))
     }).sum(d => d.value).sort((a,b) => b.value - a.value);
 
-    d3.treemap().size([width, height]).paddingInner(7).round(true)(root);
+    d3.treemap().size([width, height]).paddingInner(8).round(true)(root);
 
     const g = svg.attr("viewBox", `0 0 ${width} ${height}`).append("g");
 
@@ -406,8 +375,9 @@ function createTreemap() {
         .data(root.leaves())
         .enter()
         .append("g")
-        .attr("transform", d => `translate(${d.x0},${d.y0})`);
+        .attr("transform", d => `translate(${d.x0}, ${d.y0})`);
 
+    // Rectangles
     cells.append("rect")
         .attr("width", d => d.x1 - d.x0)
         .attr("height", d => d.y1 - d.y0)
@@ -429,24 +399,44 @@ function createTreemap() {
         })
         .on("mouseout", () => tooltip.style("display","none"));
 
-    // Safe labels
-    cells.append("text")
-        .attr("x", 10)
-        .attr("y", 24)
-        .style("fill", "#fff")
-        .style("font-size", "13px")
-        .style("font-weight", "600")
-        .text(d => d.data.name.length > 10 ? d.data.name.substring(0,9)+"..." : d.data.name);
+    // Smart Labels
+    cells.each(function(d) {
+        const rectWidth = d.x1 - d.x0;
+        const rectHeight = d.y1 - d.y0;
+        const group = d3.select(this);
 
-    cells.append("text")
-        .attr("x", 10)
-        .attr("y", 42)
-        .style("fill", "#fff")
-        .style("font-size", "11.5px")
-        .text(d => d.data.value.toFixed(1));
+        // Name label
+        const nameText = group.append("text")
+            .attr("x", 10)
+            .attr("y", 24)
+            .style("fill", "#fff")
+            .style("font-size", "13px")
+            .style("font-weight", "600")
+            .text(d.data.name);
+
+        // Value label
+        group.append("text")
+            .attr("x", 10)
+            .attr("y", 44)
+            .style("fill", "#fff")
+            .style("font-size", "11.5px")
+            .text(d.data.value.toFixed(1));
+
+        // Hide or shorten name if too small
+        const nameNode = nameText.node();
+        if (nameNode.getComputedTextLength() > rectWidth - 20 || rectHeight < 50) {
+            nameText.text(d.data.name.length > 9 ? d.data.name.substring(0,8) + "..." : d.data.name);
+        }
+
+        // Hide value if box is very small
+        if (rectHeight < 45) {
+            nameText.attr("y", rectHeight / 2 + 6);
+            group.selectAll("text").filter(function() { return this !== nameNode; }).remove();
+        }
+    });
 }
 
-// ==================== RENDER ====================
+// ==================== RENDER ALL ====================
 function renderAll() {
     createLineChart();
     createStackedAreaChart();
