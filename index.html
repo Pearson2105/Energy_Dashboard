@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>UK Renewables Dashboard | Coursework 2</title>
+<title>UK Renewables Dashboard</title>
 <script src="https://d3js.org/d3.v7.min.js"></script>
 <style>
     :root {
@@ -26,11 +26,11 @@
 
     .dashboard {
         display: grid;
-        grid-template-columns: 2.1fr 1fr;
-        grid-template-rows: 110px 1fr 1fr;
-        gap: 18px;
+        grid-template-columns: 2fr 1.05fr;
+        grid-template-rows: 115px 1fr 1fr;
+        gap: 16px;
         height: 100vh;
-        padding: 18px;
+        padding: 16px;
     }
 
     .header {
@@ -38,27 +38,23 @@
         background: white;
         border: 1px solid var(--border);
         border-radius: 16px;
-        padding: 16px 28px;
+        padding: 14px 24px;
         box-shadow: 0 4px 15px rgba(0,0,0,0.06);
         display: flex;
         justify-content: space-between;
         align-items: center;
     }
 
-    .question {
-        max-width: 65%;
-    }
-
     .question h1 {
-        font-size: 24px;
+        font-size: 23px;
         font-weight: 700;
         color: #0f172a;
-        margin-bottom: 6px;
     }
 
     .question p {
-        font-size: 14.5px;
+        font-size: 14px;
         color: #475569;
+        margin-top: 4px;
     }
 
     .controls {
@@ -68,9 +64,9 @@
     }
 
     select, button {
-        padding: 10px 16px;
+        padding: 9px 15px;
         border: 1px solid var(--border);
-        border-radius: 10px;
+        border-radius: 9px;
         font-size: 14px;
     }
 
@@ -82,26 +78,30 @@
         cursor: pointer;
     }
 
-    button:hover { background: #0284c8; }
-
     .chart-container {
         background: var(--card);
         border: 1px solid var(--border);
         border-radius: 16px;
-        padding: 18px;
-        box-shadow: 0 6px 20px rgba(0,0,0,0.07);
+        padding: 16px;
+        box-shadow: 0 6px 18px rgba(0,0,0,0.07);
         display: flex;
         flex-direction: column;
+        overflow: hidden;
     }
 
     .chart-title {
         font-size: 16.5px;
         font-weight: 600;
-        margin-bottom: 12px;
+        margin-bottom: 10px;
         color: #1e2937;
     }
 
-    svg { width: 100%; height: 100%; flex: 1; }
+    svg { 
+        width: 100%; 
+        height: 100%; 
+        flex: 1;
+        overflow: visible;
+    }
 
     .tooltip {
         position: absolute;
@@ -117,16 +117,36 @@
     }
 
     .info {
-        font-size: 12.8px;
+        font-size: 12.5px;
         color: #64748b;
+        margin-top: 6px;
+    }
+
+    .legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
         margin-top: 8px;
+        font-size: 12.5px;
+    }
+
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        cursor: pointer;
+    }
+
+    .legend-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
     }
 </style>
 </head>
 <body>
 
 <div class="dashboard">
-    <!-- Header -->
     <div class="header">
         <div class="question">
             <h1>UK Renewable & Waste Energy Transition (1990–2023)</h1>
@@ -141,18 +161,20 @@
         </div>
     </div>
 
-    <!-- Line Chart - Temporal Trend -->
+    <!-- Line Chart -->
     <div class="chart-container" style="grid-row: 2 / span 2;">
         <div class="chart-title">Temporal Trend: Energy Consumption Over Time</div>
         <svg id="lineChart"></svg>
-        <div class="info">Brush to select time range • Click lines to highlight source</div>
+        <div id="lineLegend" class="legend"></div>
+        <div class="info">Brush to select range • Click line or legend to highlight source</div>
     </div>
 
-    <!-- Stacked Area Chart -->
+    <!-- Stacked Area -->
     <div class="chart-container">
         <div class="chart-title">Composition Over Time (Stacked Area)</div>
         <svg id="stackedChart"></svg>
-        <div class="info">Shows relative contribution of each source over the years</div>
+        <div id="stackedLegend" class="legend"></div>
+        <div class="info">Click on a colored area to filter by source</div>
     </div>
 
     <!-- Treemap -->
@@ -161,20 +183,14 @@
             <span id="treemapYear" style="font-weight:normal; color:#64748b;">(2023)</span>
         </div>
         <svg id="treeMap"></svg>
-        <div class="info">Click a block to filter the dashboard</div>
+        <div class="info">Click blocks to filter • Size represents contribution</div>
     </div>
 </div>
 
 <div class="tooltip" id="tooltip"></div>
 
 <script>
-// ==================== MAIN QUESTION & CONFIG ====================
-/* 
-   Research Question: 
-   "How has the composition and growth of renewable and waste energy consumption 
-    evolved in the UK, and which sources are driving the transition?"
-*/
-
+// ==================== CONFIG ====================
 const tooltip = d3.select("#tooltip");
 
 const sourceGroups = {
@@ -188,13 +204,13 @@ const sourceGroups = {
 
 const colors = d3.scaleOrdinal()
     .domain(Object.keys(sourceGroups))
-    .range(["#0ea5e9", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#14b8a6"]);
+    .range(["#0ea5e9","#10b981","#f59e0b","#ef4444","#8b5cf6","#14b8a6"]);
 
 let dataset = [];
 let selectedSource = null;
 let brushedRange = null;
 
-// ==================== DATA PROCESSING ====================
+// ==================== DATA ====================
 function buildData(raw) {
     return raw.map(d => {
         const row = { year: +d.Year };
@@ -209,11 +225,10 @@ function buildData(raw) {
 // ==================== DROPDOWN ====================
 function createDropdown() {
     const select = document.getElementById("sourceSelect");
-    Object.keys(sourceGroups).forEach(source => {
-        const option = document.createElement("option");
-        option.value = source;
-        option.textContent = source;
-        select.appendChild(option);
+    Object.keys(sourceGroups).forEach(s => {
+        const opt = document.createElement("option");
+        opt.value = s; opt.textContent = s;
+        select.appendChild(opt);
     });
     select.addEventListener("change", e => {
         selectedSource = e.target.value === "all" ? null : e.target.value;
@@ -221,13 +236,33 @@ function createDropdown() {
     });
 }
 
-// ==================== LINE CHART (Temporal) ====================
+// ==================== LEGEND HELPER ====================
+function createLegend(containerId, onClick) {
+    const container = document.getElementById(containerId);
+    container.innerHTML = '';
+    Object.keys(sourceGroups).forEach(source => {
+        const item = document.createElement("div");
+        item.className = "legend-item";
+        item.innerHTML = `
+            <div class="legend-dot" style="background:${colors(source)}"></div>
+            <span>${source}</span>
+        `;
+        item.onclick = () => {
+            selectedSource = selectedSource === source ? null : source;
+            document.getElementById("sourceSelect").value = selectedSource || "all";
+            renderAll();
+        };
+        container.appendChild(item);
+    });
+}
+
+// ==================== LINE CHART ====================
 function createLineChart() {
     const svg = d3.select("#lineChart");
     svg.selectAll("*").remove();
 
-    const width = 880, height = 480;
-    const margin = {top: 30, right: 140, bottom: 60, left: 70};
+    const width = 860, height = 460;
+    const margin = {top: 25, right: 30, bottom: 55, left: 65};
     const w = width - margin.left - margin.right;
     const h = height - margin.top - margin.bottom;
 
@@ -239,46 +274,50 @@ function createLineChart() {
 
     const x = d3.scaleLinear().domain(d3.extent(data, d => d.year)).range([0, w]);
     const yMax = selectedSource ? d3.max(data, d => d[selectedSource]) : d3.max(data, d => d.total);
-    const y = d3.scaleLinear().domain([0, yMax * 1.1]).range([h, 0]);
+    const y = d3.scaleLinear().domain([0, yMax * 1.08]).range([h, 0]);
 
     g.append("g").attr("transform", `translate(0,${h})`).call(d3.axisBottom(x).tickFormat(d3.format("d")));
     g.append("g").call(d3.axisLeft(y));
 
-    g.append("text").attr("x", w/2).attr("y", h+50).attr("text-anchor","middle").attr("fill","#64748b").text("Year");
-    g.append("text").attr("transform","rotate(-90)").attr("x",-h/2).attr("y",-50)
+    g.append("text").attr("x", w/2).attr("y", h+48).attr("text-anchor","middle").attr("fill","#64748b").text("Year");
+    g.append("text").attr("transform","rotate(-90)").attr("x",-h/2).attr("y",-48)
         .attr("text-anchor","middle").attr("fill","#64748b").text("Energy Consumption (Mtoe)");
 
-    const line = d3.line().curve(d3.curveNatural);
+    const lineGen = d3.line().curve(d3.curveNatural);
 
-    // Total line when no filter
     if (!selectedSource) {
-        line.x(d=>x(d.year)).y(d=>y(d.total));
+        lineGen.x(d=>x(d.year)).y(d=>y(d.total));
         g.append("path").datum(data).attr("fill","none").attr("stroke","#1e2937")
-            .attr("stroke-width", 4).attr("d", line);
+            .attr("stroke-width",4.5).attr("d", lineGen);
     }
 
     Object.keys(sourceGroups).forEach(source => {
-        line.x(d=>x(d.year)).y(d=>y(d[source]));
+        lineGen.x(d=>x(d.year)).y(d=>y(d[source]));
         g.append("path")
             .datum(data)
             .attr("fill","none")
             .attr("stroke", colors(source))
             .attr("stroke-width", selectedSource === source ? 5 : 2.8)
             .attr("opacity", selectedSource && selectedSource !== source ? 0.25 : 1)
-            .attr("d", line)
+            .attr("d", lineGen)
             .style("cursor","pointer")
-            .on("click", () => { selectedSource = source; document.getElementById("sourceSelect").value = source; renderAll(); })
-            .on("mouseover", e => tooltip.style("display","block").html(`<strong>${source}</strong>`).style("left", e.pageX+15+"px").style("top", e.pageY-10+"px"))
+            .on("click", () => {
+                selectedSource = source;
+                document.getElementById("sourceSelect").value = source;
+                renderAll();
+            })
+            .on("mouseover", e => {
+                tooltip.style("display","block").html(`<strong>${source}</strong>`).style("left", e.pageX+15+"px").style("top", e.pageY-10+"px");
+            })
             .on("mouseout", () => tooltip.style("display","none"));
     });
 
     // Brush
     const brush = d3.brushX().extent([[0,0],[w,h]])
         .on("end", event => {
-            if (!event.selection) {
-                brushedRange = null;
-            } else {
-                const [x0, x1] = event.selection;
+            if (!event.selection) brushedRange = null;
+            else {
+                const [x0,x1] = event.selection;
                 brushedRange = [Math.round(x.invert(x0)), Math.round(x.invert(x1))];
             }
             renderAll();
@@ -286,13 +325,13 @@ function createLineChart() {
     g.append("g").call(brush);
 }
 
-// ==================== STACKED AREA CHART ====================
+// ==================== STACKED AREA CHART (Interactive) ====================
 function createStackedAreaChart() {
     const svg = d3.select("#stackedChart");
     svg.selectAll("*").remove();
 
-    const width = 520, height = 300;
-    const margin = {top: 20, right: 30, bottom: 60, left: 55};
+    const width = 510, height = 290;
+    const margin = {top: 20, right: 30, bottom: 50, left: 55};
     const w = width - margin.left - margin.right;
     const h = height - margin.top - margin.bottom;
 
@@ -300,16 +339,15 @@ function createStackedAreaChart() {
                  .append("g").attr("transform", `translate(${margin.left},${margin.top})`);
 
     let data = dataset;
-    if (brushedRange) {
-        data = dataset.filter(d => d.year >= brushedRange[0] && d.year <= brushedRange[1]);
-    }
+    if (brushedRange) data = dataset.filter(d => d.year >= brushedRange[0] && d.year <= brushedRange[1]);
 
     const keys = Object.keys(sourceGroups);
     const stack = d3.stack().keys(keys);
     const stackedData = stack(data);
 
     const x = d3.scaleLinear().domain(d3.extent(data, d=>d.year)).range([0, w]);
-    const y = d3.scaleLinear().domain([0, d3.max(stackedData, d => d3.max(d, d => d[1]))]).range([h, 0]);
+    const y = d3.scaleLinear().domain([0, d3.max(stackedData, layer => d3.max(layer, d => d[1])) * 1.05])
+                .range([h, 0]);
 
     const area = d3.area()
         .x(d => x(d.data.year))
@@ -317,42 +355,51 @@ function createStackedAreaChart() {
         .y1(d => y(d[1]))
         .curve(d3.curveNatural);
 
-    g.selectAll("path")
+    g.selectAll("path.area")
         .data(stackedData)
         .enter()
         .append("path")
+        .attr("class", "area")
         .attr("d", area)
         .attr("fill", d => colors(d.key))
-        .attr("opacity", 0.85)
+        .attr("opacity", d => selectedSource && selectedSource !== d.key ? 0.35 : 0.85)
         .attr("stroke", "#fff")
-        .attr("stroke-width", 1)
-        .style("cursor","pointer")
+        .attr("stroke-width", 1.5)
+        .style("cursor", "pointer")
+        .on("click", (e, d) => {
+            selectedSource = selectedSource === d.key ? null : d.key;
+            document.getElementById("sourceSelect").value = selectedSource || "all";
+            renderAll();
+        })
         .on("mouseover", (e, d) => {
             tooltip.style("display","block")
                 .html(`<strong>${d.key}</strong>`)
-                .style("left", e.pageX+15+"px")
-                .style("top", e.pageY-10+"px");
+                .style("left", e.pageX + 15 + "px")
+                .style("top", e.pageY - 10 + "px");
         })
         .on("mouseout", () => tooltip.style("display","none"));
 
+    // Axes
     g.append("g").attr("transform", `translate(0,${h})`).call(d3.axisBottom(x).tickFormat(d3.format("d")));
     g.append("g").call(d3.axisLeft(y));
+
+    g.append("text").attr("x", w/2).attr("y", h+42).attr("text-anchor","middle").attr("fill","#64748b").text("Year");
+    g.append("text").attr("transform","rotate(-90)").attr("x",-h/2).attr("y",-42)
+        .attr("text-anchor","middle").attr("fill","#64748b").text("Energy Consumption (Mtoe)");
 }
 
-// ==================== TREEMAP ====================
+// ==================== TREEMAP (Fixed Labels) ====================
 function createTreemap() {
     const svg = d3.select("#treeMap");
     svg.selectAll("*").remove();
 
     const width = 500, height = 280;
-    let dataForTreemap;
 
+    let dataForTreemap;
     if (brushedRange) {
         const rangeData = dataset.filter(d => d.year >= brushedRange[0] && d.year <= brushedRange[1]);
         dataForTreemap = {};
-        Object.keys(sourceGroups).forEach(s => {
-            dataForTreemap[s] = d3.mean(rangeData, d => d[s]) || 0;
-        });
+        Object.keys(sourceGroups).forEach(s => dataForTreemap[s] = d3.mean(rangeData, d => d[s]) || 0);
         document.getElementById("treemapYear").textContent = `(${brushedRange[0]}-${brushedRange[1]} avg)`;
     } else {
         const yearData = dataset.find(d => d.year === 2023) || dataset[dataset.length-1];
@@ -360,12 +407,10 @@ function createTreemap() {
         document.getElementById("treemapYear").textContent = "(2023)";
     }
 
-    const root = d3.hierarchy({
-        name: "Renewables",
-        children: Object.keys(sourceGroups).map(s => ({name: s, value: dataForTreemap[s]}))
-    }).sum(d => d.value).sort((a,b) => b.value - a.value);
+    const root = d3.hierarchy({name:"Renewables", children: Object.keys(sourceGroups).map(s => ({name:s, value: dataForTreemap[s]}))})
+        .sum(d => d.value).sort((a,b) => b.value - a.value);
 
-    d3.treemap().size([width, height]).padding(8).round(true)(root);
+    d3.treemap().size([width, height]).paddingInner(6).round(true)(root);
 
     const g = svg.attr("viewBox", `0 0 ${width} ${height}`).append("g");
 
@@ -380,7 +425,7 @@ function createTreemap() {
         .attr("height", d => d.y1 - d.y0)
         .attr("rx", 6)
         .attr("fill", d => colors(d.data.name))
-        .attr("stroke", "#f8fafc")
+        .attr("stroke", "#fff")
         .attr("stroke-width", 3)
         .style("cursor","pointer")
         .on("click", (_, d) => {
@@ -396,13 +441,28 @@ function createTreemap() {
         })
         .on("mouseout", () => tooltip.style("display","none"));
 
+    // Improved Treemap Labels
     cells.append("text")
         .attr("x", 12)
-        .attr("y", 30)
+        .attr("y", 26)
         .style("fill", "white")
-        .style("font-size", "14.5px")
+        .style("font-size", "13.5px")
         .style("font-weight", "600")
-        .text(d => d.data.name);
+        .text(d => d.data.name)
+        .each(function(d) {
+            const bbox = this.getBBox();
+            const rectWidth = d.x1 - d.x0;
+            if (bbox.width > rectWidth - 20) {
+                this.textContent = d.data.name.substring(0, 8) + "...";
+            }
+        });
+
+    cells.append("text")
+        .attr("x", 12)
+        .attr("y", 48)
+        .style("fill", "white")
+        .style("font-size", "12px")
+        .text(d => d.data.value.toFixed(1) + " Mtoe");
 }
 
 // ==================== RENDER ALL ====================
@@ -410,6 +470,8 @@ function renderAll() {
     createLineChart();
     createStackedAreaChart();
     createTreemap();
+    createLegend("lineLegend");
+    createLegend("stackedLegend");
 }
 
 function resetDashboard() {
@@ -419,7 +481,7 @@ function resetDashboard() {
     renderAll();
 }
 
-// ==================== LOAD DATA ====================
+// Load Data
 d3.csv("renewables_sources.csv").then(raw => {
     dataset = buildData(raw);
     createDropdown();
