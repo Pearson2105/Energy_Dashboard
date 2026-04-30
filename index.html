@@ -183,7 +183,6 @@ let dataset = [];
 let selectedSource = null;
 let brushedRange = null;
 
-// Data processing
 function buildData(raw) {
     return raw.map(d => {
         const row = { year: +d.Year };
@@ -224,11 +223,9 @@ function createLegend(containerId) {
     });
 }
 
-// ==================== LINE CHART ====================
-function createLineChart() {
-    const svg = d3.select("#lineChart");
-    svg.selectAll("*").remove();
-
+// ==================== LINE & STACKED (unchanged for brevity) ====================
+function createLineChart() { /* same as previous version */ 
+    const svg = d3.select("#lineChart"); svg.selectAll("*").remove();
     const width = 840, height = 430;
     const margin = {top: 20, right: 25, bottom: 50, left: 60};
     const w = width - margin.left - margin.right;
@@ -253,12 +250,9 @@ function createLineChart() {
 
     const lineGen = d3.line().curve(d3.curveNatural);
 
-    // Total (Black line)
     if (!selectedSource) {
         lineGen.x(d=>x(d.year)).y(d=>y(d.total));
-        g.append("path").datum(data)
-            .attr("fill","none").attr("stroke","#1e2937").attr("stroke-width", 3.5)
-            .attr("d", lineGen);
+        g.append("path").datum(data).attr("fill","none").attr("stroke","#1e2937").attr("stroke-width", 3.5).attr("d", lineGen);
     }
 
     Object.keys(sourceGroups).forEach(source => {
@@ -288,7 +282,6 @@ function createLineChart() {
     g.append("g").call(brush);
 }
 
-// ==================== STACKED AREA ====================
 function createStackedAreaChart() {
     const svg = d3.select("#stackedChart");
     svg.selectAll("*").remove();
@@ -337,7 +330,7 @@ function createStackedAreaChart() {
     g.append("g").call(d3.axisLeft(y));
 }
 
-// ==================== IMPROVED TREEMAP ====================
+// ==================== FIXED TREEMAP ====================
 function createTreemap() {
     const svg = d3.select("#treeMap");
     svg.selectAll("*").remove();
@@ -345,19 +338,18 @@ function createTreemap() {
     const width = 490;
     const height = 265;
 
-    let dataForTreemap;
+    let dataForTreemap = {};
     let titleText = "(2023)";
 
     if (brushedRange) {
         const rangeData = dataset.filter(d => d.year >= brushedRange[0] && d.year <= brushedRange[1]);
-        dataForTreemap = {};
         Object.keys(sourceGroups).forEach(s => {
             dataForTreemap[s] = d3.mean(rangeData, d => d[s]) || 0;
         });
         titleText = `(${brushedRange[0]}-${brushedRange[1]} avg)`;
     } else {
         const yearData = dataset.find(d => d.year === 2023) || dataset[dataset.length-1];
-        dataForTreemap = Object.fromEntries(Object.keys(sourceGroups).map(s => [s, yearData[s]]));
+        Object.keys(sourceGroups).forEach(s => dataForTreemap[s] = yearData[s]);
     }
 
     document.getElementById("treemapYear").textContent = titleText;
@@ -375,9 +367,8 @@ function createTreemap() {
         .data(root.leaves())
         .enter()
         .append("g")
-        .attr("transform", d => `translate(${d.x0}, ${d.y0})`);
+        .attr("transform", d => `translate(${d.x0},${d.y0})`);
 
-    // Rectangles
     cells.append("rect")
         .attr("width", d => d.x1 - d.x0)
         .attr("height", d => d.y1 - d.y0)
@@ -399,44 +390,60 @@ function createTreemap() {
         })
         .on("mouseout", () => tooltip.style("display","none"));
 
-    // Smart Labels
+    // Smart Label Logic
     cells.each(function(d) {
         const rectWidth = d.x1 - d.x0;
         const rectHeight = d.y1 - d.y0;
         const group = d3.select(this);
 
-        // Name label
-        const nameText = group.append("text")
-            .attr("x", 10)
-            .attr("y", 24)
-            .style("fill", "#fff")
-            .style("font-size", "13px")
-            .style("font-weight", "600")
-            .text(d.data.name);
+        if (rectHeight < 35) {
+            // Very small box → only show value, no name
+            group.append("text")
+                .attr("x", rectWidth/2)
+                .attr("y", rectHeight/2 + 5)
+                .attr("text-anchor", "middle")
+                .style("fill", "#fff")
+                .style("font-size", "10px")
+                .style("font-weight", "600")
+                .text(d.data.value.toFixed(1));
+        } 
+        else if (rectHeight < 55 || rectWidth < 70) {
+            // Medium box → short name + value
+            group.append("text")
+                .attr("x", 8)
+                .attr("y", 22)
+                .style("fill", "#fff")
+                .style("font-size", "12px")
+                .style("font-weight", "600")
+                .text(d.data.name.length > 8 ? d.data.name.substring(0,7)+"..." : d.data.name);
 
-        // Value label
-        group.append("text")
-            .attr("x", 10)
-            .attr("y", 44)
-            .style("fill", "#fff")
-            .style("font-size", "11.5px")
-            .text(d.data.value.toFixed(1));
+            group.append("text")
+                .attr("x", 8)
+                .attr("y", 38)
+                .style("fill", "#fff")
+                .style("font-size", "11px")
+                .text(d.data.value.toFixed(1));
+        } 
+        else {
+            // Large box → full name + value
+            group.append("text")
+                .attr("x", 10)
+                .attr("y", 26)
+                .style("fill", "#fff")
+                .style("font-size", "13.5px")
+                .style("font-weight", "600")
+                .text(d.data.name);
 
-        // Hide or shorten name if too small
-        const nameNode = nameText.node();
-        if (nameNode.getComputedTextLength() > rectWidth - 20 || rectHeight < 50) {
-            nameText.text(d.data.name.length > 9 ? d.data.name.substring(0,8) + "..." : d.data.name);
-        }
-
-        // Hide value if box is very small
-        if (rectHeight < 45) {
-            nameText.attr("y", rectHeight / 2 + 6);
-            group.selectAll("text").filter(function() { return this !== nameNode; }).remove();
+            group.append("text")
+                .attr("x", 10)
+                .attr("y", 46)
+                .style("fill", "#fff")
+                .style("font-size", "12px")
+                .text(d.data.value.toFixed(1) + " Mtoe");
         }
     });
 }
 
-// ==================== RENDER ALL ====================
 function renderAll() {
     createLineChart();
     createStackedAreaChart();
