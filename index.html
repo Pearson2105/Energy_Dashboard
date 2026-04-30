@@ -239,21 +239,21 @@ function createLineChart() {
     svg.selectAll("*").remove();
 
     const width = 840, height = 430;
-    const margin = {top: 20, right: 30, bottom: 52, left: 62};
+    const margin = {top: 20, right: 30, bottom: 55, left: 65};
     const w = width - margin.left - margin.right;
     const h = height - margin.top - margin.bottom;
 
     const g = svg.attr("viewBox", `0 0 ${width} ${height}`)
                  .append("g").attr("transform", `translate(${margin.left},${margin.top})`);
 
-    // Always use full dataset for scaling, filter only for display
+    // Decide what data to show
     let displayData = dataset;
     let xDomain = d3.extent(dataset, d => d.year);
 
     if (brushedRange) {
         displayData = dataset.filter(d => d.year >= brushedRange[0] && d.year <= brushedRange[1]);
         if (brushedRange[1] - brushedRange[0] >= 5) {
-            xDomain = brushedRange;
+            xDomain = [brushedRange[0], brushedRange[1]];
         }
     }
 
@@ -262,23 +262,25 @@ function createLineChart() {
         ? d3.max(dataset, d => d[selectedSource]) 
         : d3.max(dataset, d => d.total);
 
-    const y = d3.scaleLinear().domain([0, yMax * 1.08]).range([h, 0]);
+    const y = d3.scaleLinear().domain([0, yMax * 1.1]).range([h, 0]);
 
     // Axes
-    g.append("g").attr("transform", `translate(0,${h})`).call(d3.axisBottom(x).tickFormat(d3.format("d")));
+    g.append("g").attr("transform", `translate(0,${h})`)
+        .call(d3.axisBottom(x).tickFormat(d3.format("d")));
+
     g.append("g").call(d3.axisLeft(y));
 
-    g.append("text").attr("x", w/2).attr("y", h+44).attr("text-anchor","middle").attr("fill","#64748b").text("Year");
-    g.append("text").attr("transform","rotate(-90)").attr("x",-h/2).attr("y",-48)
+    g.append("text").attr("x", w/2).attr("y", h + 45).attr("text-anchor","middle").attr("fill","#64748b").text("Year");
+    g.append("text").attr("transform","rotate(-90)").attr("x",-h/2).attr("y",-50)
         .attr("text-anchor","middle").attr("fill","#64748b").text("Energy Consumption (Mtoe)");
 
     const lineGen = d3.line().curve(d3.curveNatural);
 
-    // Black Total line
+    // Total black line
     if (!selectedSource) {
         lineGen.x(d => x(d.year)).y(d => y(d.total));
         g.append("path").datum(displayData)
-            .attr("fill","none").attr("stroke","#1e2937").attr("stroke-width", 3.5).attr("d", lineGen);
+            .attr("fill","none").attr("stroke","#1e2937").attr("stroke-width", 3.8).attr("d", lineGen);
     }
 
     // Source lines
@@ -288,8 +290,8 @@ function createLineChart() {
             .datum(displayData)
             .attr("fill","none")
             .attr("stroke", colors(source))
-            .attr("stroke-width", selectedSource === source ? 4.5 : 2.6)
-            .attr("opacity", selectedSource && selectedSource !== source ? 0.3 : 1)
+            .attr("stroke-width", selectedSource === source ? 4.8 : 2.8)
+            .attr("opacity", selectedSource && selectedSource !== source ? 0.35 : 1)
             .attr("d", lineGen)
             .style("cursor","pointer")
             .on("click", () => {
@@ -311,7 +313,7 @@ function createLineChart() {
                 let [x0, x1] = event.selection.map(x.invert);
                 x0 = Math.round(Math.max(1990, x0));
                 x1 = Math.round(Math.min(2023, x1));
-                if (x1 - x0 < 4) x1 = Math.min(2023, x0 + 4);
+                if (x1 - x0 < 5) x1 = Math.min(2023, x0 + 5);
                 brushedRange = [x0, x1];
             }
             renderAll();
@@ -326,7 +328,7 @@ function createStackedAreaChart() {
     svg.selectAll("*").remove();
 
     const width = 500, height = 275;
-    const margin = {top: 20, right: 25, bottom: 48, left: 55};
+    const margin = {top: 20, right: 25, bottom: 50, left: 55};
     const w = width - margin.left - margin.right;
     const h = height - margin.top - margin.bottom;
 
@@ -334,14 +336,16 @@ function createStackedAreaChart() {
                  .append("g").attr("transform", `translate(${margin.left},${margin.top})`);
 
     let data = dataset;
-    if (brushedRange) data = dataset.filter(d => d.year >= brushedRange[0] && d.year <= brushedRange[1]);
+    if (brushedRange) {
+        data = dataset.filter(d => d.year >= brushedRange[0] && d.year <= brushedRange[1]);
+    }
 
     const keys = Object.keys(sourceGroups);
     const stackedData = d3.stack().keys(keys)(data);
 
     const x = d3.scaleLinear().domain(d3.extent(data, d => d.year)).range([0, w]);
     const y = d3.scaleLinear()
-        .domain([0, d3.max(stackedData, d => d3.max(d, e => e[1])) * 1.06])
+        .domain([0, d3.max(stackedData, layer => d3.max(layer, d => d[1])) * 1.08])
         .range([h, 0]);
 
     const area = d3.area()
@@ -356,7 +360,7 @@ function createStackedAreaChart() {
         .append("path")
         .attr("d", area)
         .attr("fill", d => colors(d.key))
-        .attr("opacity", d => selectedSource && selectedSource !== d.key ? 0.4 : 0.85)
+        .attr("opacity", d => selectedSource && selectedSource !== d.key ? 0.45 : 0.9)
         .attr("stroke", "#fff")
         .style("cursor", "pointer")
         .on("click", (e, d) => {
@@ -466,7 +470,7 @@ function createTreemap() {
     });
 }
 
-// ==================== RENDER ====================
+// ==================== RENDER ALL ====================
 function renderAll() {
     createLineChart();
     createStackedAreaChart();
