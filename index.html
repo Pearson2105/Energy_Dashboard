@@ -143,7 +143,7 @@
         </div>
     </div>
 
-    <!-- Line Chart -->
+    <!-- line chart -->
     <div class="chart-container" style="grid-row: 2 / span 2;">
         <div class="chart-title">Temporal Trend: Energy Consumption Over Time</div>
         <svg id="lineChart"></svg>
@@ -151,7 +151,7 @@
         <div class="info">Black line = Total • Brush to select range • Click on legend to highlight</div>
     </div>
 
-    <!-- Stacked Area -->
+    <!-- stacked area -->
     <div class="chart-container">
         <div class="chart-title">Composition Over Time (Stacked Area)</div>
         <svg id="stackedChart"></svg>
@@ -159,7 +159,7 @@
         <div class="info">Click colored area to filter by source</div>
     </div>
 
-    <!-- Treemap -->
+    <!-- treemap -->
     <div class="chart-container">
         <div class="chart-title">Current Contribution • Treemap 
             <span id="treemapYear" style="font-weight:normal; color:#64748b;">(2023)</span>
@@ -172,7 +172,7 @@
 <div class="tooltip" id="tooltip"></div>
 
 <script>
-// ==================== CONFIG ====================
+// config
 const tooltip = d3.select("#tooltip");
 
 const sourceGroups = {
@@ -192,7 +192,7 @@ let dataset = [];
 let selectedSource = null;
 let brushedRange = null;
 
-// ==================== DATA ====================
+// data
 function buildData(raw) {
     return raw.map(d => {
         const row = { year: +d.Year };
@@ -233,7 +233,7 @@ function createLegend(containerId) {
     });
 }
 
-// ==================== FIXED TEMPORAL LINE CHART ====================
+// temporal line chart
 function createLineChart() {
     const svg = d3.select("#lineChart");
     svg.selectAll("*").remove();
@@ -246,19 +246,19 @@ function createLineChart() {
     const g = svg.attr("viewBox", `0 0 ${width} ${height}`)
                  .append("g").attr("transform", `translate(${margin.left},${margin.top})`);
 
-    // Determine display data and x-domain
+    // determine display data and x-domain
     let displayData = dataset;
     let xDomain = d3.extent(dataset, d => d.year);
 
     if (brushedRange) {
         displayData = dataset.filter(d => d.year >= brushedRange[0] && d.year <= brushedRange[1]);
         
-        // Always use a reasonable x-domain to avoid extreme zooming
+        // always use a reasonable x-domain to avoid extreme zooming
         const rangeWidth = brushedRange[1] - brushedRange[0];
         if (rangeWidth >= 5) {
             xDomain = brushedRange;
         } else {
-            // For small brushes, extend the view a bit to prevent empty chart
+            // for small brushes, extend the view a bit to prevent empty chart
             const start = Math.max(1990, brushedRange[0] - 3);
             const end = Math.min(2023, brushedRange[1] + 3);
             xDomain = [start, end];
@@ -274,7 +274,7 @@ function createLineChart() {
 
     const y = d3.scaleLinear().domain([0, yMax * 1.1]).range([h, 0]);
 
-    // Axes
+    // axes
     g.append("g").attr("transform", `translate(0,${h})`)
         .call(d3.axisBottom(x).tickFormat(d3.format("d")));
 
@@ -286,14 +286,14 @@ function createLineChart() {
 
     const lineGen = d3.line().curve(d3.curveNatural);
 
-    // Total black line
+    // total black line
     if (!selectedSource) {
         lineGen.x(d => x(d.year)).y(d => y(d.total));
         g.append("path").datum(displayData)
             .attr("fill","none").attr("stroke","#1e2937").attr("stroke-width", 3.8).attr("d", lineGen);
     }
 
-    // Individual source lines
+    // individual source lines
     Object.keys(sourceGroups).forEach(source => {
         lineGen.x(d => x(d.year)).y(d => y(d[source]));
         g.append("path")
@@ -313,7 +313,7 @@ function createLineChart() {
             .on("mouseout", () => tooltip.style("display","none"));
     });
 
-    // Brush
+    // brush
     const brush = d3.brushX()
         .extent([[0, 0], [w, h]])
         .on("end", event => {
@@ -332,7 +332,7 @@ function createLineChart() {
     g.append("g").call(brush);
 }
 
-// ==================== STACKED AREA ====================
+// stacked area
 function createStackedAreaChart() {
     const svg = d3.select("#stackedChart");
     svg.selectAll("*").remove();
@@ -387,7 +387,7 @@ function createStackedAreaChart() {
         .attr("text-anchor","middle").attr("fill","#64748b").text("Energy Consumption (Mtoe)");
 }
 
-// ==================== TREEMAP ====================
+// treemap
 function createTreemap() {
     const svg = d3.select("#treeMap");
     svg.selectAll("*").remove();
@@ -482,7 +482,7 @@ function createTreemap() {
     });
 }
 
-// ==================== RENDER ALL ====================
+// render all
 function renderAll() {
     createLineChart();
     createStackedAreaChart();
@@ -498,7 +498,7 @@ function resetDashboard() {
     renderAll();
 }
 
-// Load data
+// load data
 d3.csv("renewables_sources.csv").then(raw => {
     dataset = buildData(raw);
     createDropdown();
