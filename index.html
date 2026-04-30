@@ -148,7 +148,7 @@ svg {
         <div id="selectedYear" class="info">Selected Year: 2023</div>
     </div>
 
-    <div class="chart-container" style="grid-column: 1 / -1;">
+    <div class="chart-container" style="grid-column: 1 / -1; overflow: hidden;">
         <div class="chart-title">Hierarchical Treemap of Renewable Sources</div>
         <svg id="treeMap"></svg>
         <div class="info">
@@ -290,8 +290,31 @@ function createLineChart() {
         .attr("transform", `translate(0,${chartHeight})`)
         .call(d3.axisBottom(x).tickFormat(d3.format("d")));
 
+    g.append("text")
+        .attr("x", chartWidth / 2)
+        .attr("y", chartHeight + 38)
+        .attr("text-anchor", "middle")
+        .attr("class", "axis-label")
+        .text("Year");
+
     g.append("g")
         .call(d3.axisLeft(y));
+
+    g.append("text")
+        .attr("transform", "rotate(-90)")
+        .attr("x", -chartHeight / 2)
+        .attr("y", -45)
+        .attr("text-anchor", "middle")
+        .attr("class", "axis-label")
+        .text("Energy Consumption (Mtoe)");
+
+    g.append("text")
+        .attr("transform", "rotate(-90)")
+        .attr("x", -chartHeight / 2)
+        .attr("y", -45)
+        .attr("text-anchor", "middle")
+        .attr("class", "axis-label")
+        .text("Energy Consumption (Mtoe)");
 
     const totalLine = d3.line()
         .x(d => x(d.year))
@@ -433,8 +456,23 @@ function createBarChart() {
         .attr("transform", `translate(0,${chartHeight})`)
         .call(d3.axisBottom(x));
 
+    g.append("text")
+        .attr("x", chartWidth / 2)
+        .attr("y", chartHeight + 40)
+        .attr("text-anchor", "middle")
+        .attr("class", "axis-label")
+        .text("Renewable Energy Source");
+
     g.append("g")
         .call(d3.axisLeft(y));
+
+    g.append("text")
+        .attr("transform", "rotate(-90)")
+        .attr("x", -chartHeight / 2)
+        .attr("y", -45)
+        .attr("text-anchor", "middle")
+        .attr("class", "axis-label")
+        .text("Energy Consumption (Mtoe)");
 
     g.selectAll("rect")
         .data(chartData)
@@ -479,8 +517,8 @@ function createTreemap() {
     const svg = d3.select("#treeMap");
     svg.selectAll("*").remove();
 
-    const width = 1700;
-    const height = 340;
+    const width = 1650;
+    const height = 320;
 
     const yearData = dataset.find(d => d.year === selectedYear) || dataset[dataset.length - 1];
 
@@ -561,7 +599,7 @@ function createTreemap() {
         .attr("y", 72)
         .style("fill", "white")
         .style("font-size", "13px")
-        .text(d => `${d.data.percentage.toFixed(1)}% of renewable energy`);
+        .text(d => `${d.data.percentage.toFixed(1)}% share`);
 }
 
 function renderDashboard() {
